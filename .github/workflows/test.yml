@@ -1,0 +1,16 @@
+name: manual-test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  hello:
+    runs-on: [self-hosted, linux, x64, manual-test]
+    steps:
+      - name: Show host
+        run: |
+          echo "hello from $(hostname)"
+          echo "user: $(whoami)"
+          echo "DOCKER_HOST=$DOCKER_HOST"
+      - name: Docker shim works
+        run: docker run --rm hello-world
