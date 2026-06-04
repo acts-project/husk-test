@@ -25,4 +25,4 @@ jobs:
           echo "clean: canary absent"
           touch /tmp/husk-leak-canary
       - name: Simulate a job running
-        run: sleep 10
+        run: sleep 300
