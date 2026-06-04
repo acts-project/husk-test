@@ -1,60 +1,27 @@
-name: manual-test
+name: husk-phase3
 
+# Phase 3 recycle probe. Single job on purpose: JIT runners are single-use
+# (one job, then deregister + exit), so a multi-job workflow would strand the
+# later jobs with no runner. The driver (phase3-recycle.py) dispatches this
+# once per recycle cycle.
 on:
   workflow_dispatch:
 
 jobs:
-  hello:
-    runs-on: [self-hosted, linux, x64, manual-test]
+  recycle-probe:
+    runs-on: [self-hosted, linux, x64, husk-phase3]
     steps:
-      - name: Show host
+      - name: Identity
         run: |
           echo "hello from $(hostname)"
-          echo "user: $(whoami)"
+          echo "user: $(whoami)  uid: $(id -u)"
           echo "DOCKER_HOST=$DOCKER_HOST"
-      - name: Docker shim works
-        run: docker run --rm hello-world
-
-  # in-container:
-  #   runs-on: [self-hosted, linux, x64, manual-test]
-  #   container:
-  #     image: ubuntu:24.04
-  #   steps:
-  #     - name: Who am I, and where
-  #       run: |
-  #         echo "running inside: $(cat /etc/os-release | grep PRETTY_NAME)"
-  #         echo "hostname: $(hostname)"
-  #         echo "uid: $(id)"
-  #     - name: Workspace is mounted
-  #       run: |
-  #         pwd
-  #         ls -la
-  #         echo "marker" > container-wrote-this.txt
-  #         cat container-wrote-this.txt
-  #     - name: Container is fully functional (pkg mgr works)
-  #       run: |
-  #         apt-get update -qq
-  #         apt-get install -y -qq jq >/dev/null
-  #         jq --version
-
-
-  actions:
-    runs-on: [self-hosted, linux, x64, manual-test]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: |
-          node --version
-          npm --version
-          echo "checked out $(git rev-parse --short HEAD)"
-
-
-  docker-action:
-    runs-on: [self-hosted, linux, x64, manual-test]
-    steps:
-      - uses: docker://alpine:3.20
-        with:
-          entrypoint: /bin/sh
-          args: -c "echo 'hello from a docker container action'; cat /etc/os-release | grep PRETTY"
+      - name: No state leaked from previous job
+        run: |
+          if [ -e /tmp/husk-leak-canary ]; then
+            echo "LEAK: canary from a previous job is present" && exit 1
+          fi
+          echo "clean: canary absent"
+          touch /tmp/husk-leak-canary
+      - name: Docker shim reaches podman
+        run: docker version --format "server {{.Server.APIVersion}}"
