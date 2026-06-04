@@ -1,0 +1,21 @@
+name: husk-evade
+
+# Phase 3 recycle probe. Single job on purpose: JIT runners are single-use
+# (one job, then deregister + exit), so a multi-job workflow would strand the
+# later jobs with no runner. The driver (phase3-recycle.py) dispatches this
+# once per recycle cycle.
+on:
+  workflow_dispatch:
+
+jobs:
+  evade:
+    runs-on: [self-hosted, linux, x64, husk-phase3]
+    steps:
+    - run: |
+    - run: |
+        id                                          # expect uid=1000(runner), no wheel
+        sudo -n true && echo BAD-has-sudo || echo "good: no sudo"
+        sudo shutdown -c 2>&1 || echo "good: cannot cancel shutdown"
+        systemctl mask poweroff.target 2>&1 || echo "good: cannot mask"
+        nft flush ruleset 2>&1 || echo "good: cannot touch firewall"
+        sleep 600                                    # now hang
