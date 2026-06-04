@@ -10,6 +10,7 @@ on:
 jobs:
   recycle-probe:
     runs-on: [self-hosted, linux, x64, husk-phase3]
+    container: alpine
     steps:
       - name: Identity
         run: |
@@ -25,6 +26,5 @@ jobs:
           touch /tmp/husk-leak-canary
       - name: Docker shim reaches podman
         run: docker version --format "server {{.Server.APIVersion}}"
-
       - name: Simulate a job running
         run: sleep 10
