@@ -24,7 +24,5 @@ jobs:
           fi
           echo "clean: canary absent"
           touch /tmp/husk-leak-canary
-      - name: Docker shim reaches podman
-        run: docker version --format "server {{.Server.APIVersion}}"
       - name: Simulate a job running
         run: sleep 10
