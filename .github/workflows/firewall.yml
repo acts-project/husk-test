@@ -1,0 +1,63 @@
+name: husk-firewall
+
+# Egress firewall probe. Verifies a hardened runner can reach the public
+# internet but NOT CERN-internal services (e.g. landb.cern.ch). Single job on
+# purpose: JIT runners are single-use (one job, then deregister + exit).
+#
+# NOTE: until the nftables egress policy is installed by cloud-init, the
+# "internal blocked" step is EXPECTED to fail — the POC ships without the
+# firewall (plan.md keeps husk-policy out of scope). A green run here is the
+# signal that the firewall is actually in place and doing its job.
+on:
+  workflow_dispatch:
+
+jobs:
+  firewall-probe:
+    runs-on: [self-hosted, linux, x64, husk-phase3]
+    steps:
+      - name: Public internet reachable
+        run: |
+          set -u
+          ok=0
+          for url in https://api.github.com https://example.com; do
+            if curl -fsS --connect-timeout 5 --max-time 10 -o /dev/null "$url"; then
+              echo "reachable  : $url"
+              ok=1
+            else
+              echo "UNREACHABLE: $url"
+            fi
+          done
+          [ "$ok" = 1 ] || { echo "FAIL: no public egress at all"; exit 1; }
+          echo "good: public internet is reachable"
+
+      - name: CERN-internal egress blocked
+        if: always()  # run even if the public check failed, for a full picture
+        run: |
+          set -u
+          # TCP-connect probe: a successful connect == the path is open == a leak.
+          # We test the network path, not HTTP/TLS, so a cert/HTTP error on an
+          # open port still counts as a leak (and a blocked route as "blocked").
+          tcp_open() { timeout "${3:-6}" bash -c "exec 3<>/dev/tcp/$1/$2" 2>/dev/null; }
+
+          # Internal-only CERN hosts that must NOT be reachable from a runner.
+          # Extend this list with any service the egress policy is meant to deny.
+          internal="landb.cern.ch:443"
+
+          leaked=""
+          for hp in $internal; do
+            host=${hp%:*}; port=${hp#*:}
+            ip=$(getent hosts "$host" | awk '{print $1; exit}')
+            echo "probing $host:$port (dns: ${ip:-<unresolved>})"
+            if tcp_open "$host" "$port"; then
+              echo "  LEAK: TCP connect to $host:$port succeeded"
+              leaked="$leaked $host:$port"
+            else
+              echo "  blocked: $host:$port"
+            fi
+          done
+
+          if [ -n "$leaked" ]; then
+            echo "FAIL: CERN-internal egress NOT blocked:$leaked"
+            exit 1
+          fi
+          echo "good: all CERN-internal targets blocked"
