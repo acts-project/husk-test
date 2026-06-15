@@ -1,0 +1,11 @@
+name: husk-libvirt-smoke
+on:
+  workflow_dispatch:
+jobs:
+  cpu-smoke:
+    runs-on: husk-libvirt-cpu          # the distinct label → routes to this pool
+    steps:
+      - run: uname -a
+      - run: cat /etc/os-release
+      - run: nproc && free -h
+      - run: echo "ran on libvirt guest $(hostname)"
