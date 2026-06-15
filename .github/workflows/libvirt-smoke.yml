@@ -10,3 +10,22 @@ jobs:
       - run: nproc && free -h
       - run: echo "ran on libvirt guest $(hostname)"
       - run: sleep 30
+
+  libvirt-container:
+    runs-on: husk-libvirt-cpu          # the distinct label → routes to this pool
+    container: alpine
+    steps:
+      - name: Identity
+        run: |
+          echo "hello from $(hostname)"
+          echo "user: $(whoami)  uid: $(id -u)"
+          echo "DOCKER_HOST=$DOCKER_HOST"
+      - name: No state leaked from previous job
+        run: |
+          if [ -e /tmp/husk-leak-canary ]; then
+            echo "LEAK: canary from a previous job is present" && exit 1
+          fi
+          echo "clean: canary absent"
+          touch /tmp/husk-leak-canary
+      - name: Simulate a job running
+        run: sleep 300
