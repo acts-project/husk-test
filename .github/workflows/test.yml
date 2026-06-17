@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  recycle-probe:
-    runs-on: [self-hosted, linux, x64, husk-phase3]
+  husk-os-oci:
+    runs-on: [self-hosted, linux, x64, husk-os-oci]
     container: alpine
     steps:
       - name: Identity
