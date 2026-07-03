@@ -1,6 +1,11 @@
 name: husk-libvirt-smoke
 on:
   workflow_dispatch:
+    inputs:
+      sleep_seconds:
+        description: Seconds to sleep in each job's sleep step
+        type: string
+        default: "300"
 jobs:
   cpu-smoke:
     runs-on: husk-libvirt-cpu          # the distinct label → routes to this pool
@@ -9,7 +14,7 @@ jobs:
       - run: cat /etc/os-release
       - run: nproc && free -h
       - run: echo "ran on libvirt guest $(hostname)"
-      - run: sleep 30
+      - run: sleep ${{ inputs.sleep_seconds }}
 
   libvirt-container:
     runs-on: husk-libvirt-cpu          # the distinct label → routes to this pool
@@ -28,4 +33,4 @@ jobs:
           echo "clean: canary absent"
           touch /tmp/husk-leak-canary
       - name: Simulate a job running
-        run: sleep 300
+        run: sleep ${{ inputs.sleep_seconds }}

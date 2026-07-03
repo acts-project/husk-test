@@ -6,6 +6,11 @@ name: husk-phase3
 # once per recycle cycle.
 on:
   workflow_dispatch:
+    inputs:
+      sleep_seconds:
+        description: Seconds to sleep in the "Simulate a job running" step
+        type: string
+        default: "300"
 
 jobs:
   husk-os-oci:
@@ -25,4 +30,4 @@ jobs:
           echo "clean: canary absent"
           touch /tmp/husk-leak-canary
       - name: Simulate a job running
-        run: sleep 300
+        run: sleep ${{ inputs.sleep_seconds }}
