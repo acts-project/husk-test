@@ -71,6 +71,14 @@ jobs:
           ls -d /cvmfs/sft.cern.ch
           ls /cvmfs/sft.cern.ch/lcg >/dev/null && echo "sft.cern.ch readable in container"
 
+      # almalinux:9 tracks RHEL 9, which dropped `which` from the base image.
+      # LCG's setup.sh shells out to it, so install it before sourcing the view.
+      # Deliberately NOT part of the CVMFS assertion — this is dnf over the
+      # normal egress path, and a failure here means the mirrors are blocked,
+      # not that CVMFS is broken.
+      - name: install which (absent from the RHEL 9 base image)
+        run: dnf -y install which
+
       # Enumeration is not proof of readability — autofs can expose a repo root
       # whose catalogs never fetch. Sourcing a view and importing ROOT forces
       # real reads of many files through the proxy.
