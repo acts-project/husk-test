@@ -14,3 +14,7 @@ test jobs="1" sleep_seconds="300":
 # libvirt CPU smoke test (husk-libvirt-cpu pool)
 libvirt-smoke jobs="1" sleep_seconds="300":
     for i in $(seq 1 {{jobs}}); do gh workflow run libvirt-smoke.yml -f sleep_seconds={{sleep_seconds}}; done
+
+# CVMFS host + container smoke test (OpenStack pool with [pool.cvmfs]; libvirt TBD)
+cvmfs-smoke jobs="1" runner_label="husk-os-oci":
+    for i in $(seq 1 {{jobs}}); do gh workflow run cvmfs-smoke.yml -f runner_label={{runner_label}}; done

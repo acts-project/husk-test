@@ -1,0 +1,95 @@
+# CernVM-FS end-to-end validation — trigger from the Actions tab.
+#
+# Targets a husk pool that has [pool.cvmfs] configured (prebaked golden image).
+# OpenStack only for now — the libvirt pools do not carry a CVMFS-enabled image
+# yet (future work). The pool label stays a dispatch input so it can be pointed
+# at a libvirt pool once one is baked, without editing the workflow.
+#
+# Proves the full chain: golden image bakes the CVMFS client + autofs → cloud-init
+# eager-mounts the configured repos and opens the proxy firewall hole → the
+# containers.conf.d drop-in binds each /cvmfs/<repo> into job containers → software
+# under /cvmfs is readable both on the host and INSIDE containers (container: jobs
+# and step-level `docker run` alike).
+name: cvmfs-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Pool label to target (must have [pool.cvmfs] configured)
+        type: string
+        default: husk-os-oci
+      lcg_view:
+        description: LCG view setup.sh to source in the container read test
+        type: string
+        default: /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh
+
+jobs:
+  # 1) Host-level: did cloud-init mount the repos on the runner VM itself?
+  host:
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 15
+    steps:
+      # Diagnostics FIRST and never fatal (set +e) — the job runs inside the
+      # runner VM, so this localizes a failure below without SSHing the guest:
+      #   * nothing under /cvmfs + empty cloud-init log -> pool has no
+      #     [pool.cvmfs], or the eager mount never ran.
+      #   * autofs present but probe fails -> proxy unreachable (firewall hole).
+      - name: diagnostics (never fails)
+        if: always()
+        run: |
+          set +e
+          echo "::group::/cvmfs mounts on the host"
+          mount | grep -i cvmfs || echo "NOTHING mounted under /cvmfs"
+          echo "::endgroup::"
+          echo "::group::cvmfs_config probe"
+          cvmfs_config probe 2>&1 || echo "probe failed"
+          echo "::endgroup::"
+          echo "::group::nft egress table (proxy hole)"
+          sudo nft list table inet husk 2>/dev/null | grep -A2 cvmfs_proxy || echo "no cvmfs_proxy set (sudo may be unavailable)"
+          echo "::endgroup::"
+          echo "::group::cloud-init output"
+          tail -80 /var/log/cloud-init-output.log 2>/dev/null || echo "cannot read cloud-init-output.log"
+          echo "::endgroup::"
+
+      - name: repos mounted on host
+        run: |
+          ls -d /cvmfs/sft.cern.ch
+          ls -d /cvmfs/atlas.cern.ch
+
+  # 2) The real test: /cvmfs visible INSIDE a `container:` job (the runner creates
+  #    the container over the podman API — the containers.conf.d drop-in must apply
+  #    there, not just to the CLI shim).
+  container-job:
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 20
+    container:
+      image: docker.io/library/almalinux:9
+    steps:
+      - name: /cvmfs visible inside the job container
+        run: |
+          ls -d /cvmfs/sft.cern.ch
+          ls /cvmfs/sft.cern.ch/lcg >/dev/null && echo "sft.cern.ch readable in container"
+
+      # Enumeration is not proof of readability — autofs can expose a repo root
+      # whose catalogs never fetch. Sourcing a view and importing ROOT forces
+      # real reads of many files through the proxy.
+      - name: real read — source an LCG view
+        run: |
+          set -e
+          view='${{ inputs.lcg_view }}'
+          test -f "$view" || { echo "expected LCG view missing: $view"; ls /cvmfs/sft.cern.ch/lcg/views | head; exit 1; }
+          source "$view"
+          python3 -c 'import ROOT; print("ROOT from CVMFS:", ROOT.__file__)'
+
+  # 3) Same visibility via a step-level `docker run` (husk's docker→podman shim).
+  #    One of container-job / docker-run passing per surface is enough; both here
+  #    to localize a failure to the API path vs the CLI-shim path.
+  docker-run:
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 15
+    steps:
+      - name: /cvmfs visible via docker run (no -v needed — the drop-in binds it)
+        run: |
+          docker run --rm docker.io/library/almalinux:9 \
+            bash -c 'ls -d /cvmfs/sft.cern.ch && ls /cvmfs/sft.cern.ch | head -3'
