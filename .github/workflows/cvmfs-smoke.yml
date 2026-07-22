@@ -25,7 +25,9 @@ on:
         default: /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh
 
 jobs:
-  # 1) Host-level: did cloud-init mount the repos on the runner VM itself?
+  # 1) Host-level checks plus the docker→podman CLI shim. Merged into one job
+  #    because neither needs a job-level `container:` — and JIT runners are
+  #    single-use, so every extra job costs a whole VM.
   host:
     runs-on: ${{ inputs.runner_label }}
     timeout-minutes: 15
@@ -57,9 +59,19 @@ jobs:
           ls -d /cvmfs/sft.cern.ch
           ls -d /cvmfs/atlas.cern.ch
 
+      # Same visibility via a step-level `docker run` (husk's docker→podman shim).
+      # Runs even if the host mounts failed, so one run tells you whether the
+      # breakage is host-wide or specific to the container surface.
+      - name: /cvmfs visible via docker run (no -v needed — the drop-in binds it)
+        if: always()
+        run: |
+          docker run --rm docker.io/library/almalinux:9 \
+            bash -c 'ls -d /cvmfs/sft.cern.ch && ls /cvmfs/sft.cern.ch | head -3'
+
   # 2) The real test: /cvmfs visible INSIDE a `container:` job (the runner creates
   #    the container over the podman API — the containers.conf.d drop-in must apply
-  #    there, not just to the CLI shim).
+  #    there, not just to the CLI shim). Stays a separate job: `container:` is
+  #    job-level, so this cannot be folded into the host job above.
   container-job:
     runs-on: ${{ inputs.runner_label }}
     timeout-minutes: 20
@@ -89,15 +101,3 @@ jobs:
           test -f "$view" || { echo "expected LCG view missing: $view"; ls /cvmfs/sft.cern.ch/lcg/views | head; exit 1; }
           source "$view"
           python3 -c 'import ROOT; print("ROOT from CVMFS:", ROOT.__file__)'
-
-  # 3) Same visibility via a step-level `docker run` (husk's docker→podman shim).
-  #    One of container-job / docker-run passing per surface is enough; both here
-  #    to localize a failure to the API path vs the CLI-shim path.
-  docker-run:
-    runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: 15
-    steps:
-      - name: /cvmfs visible via docker run (no -v needed — the drop-in binds it)
-        run: |
-          docker run --rm docker.io/library/almalinux:9 \
-            bash -c 'ls -d /cvmfs/sft.cern.ch && ls /cvmfs/sft.cern.ch | head -3'
