@@ -8,7 +8,7 @@ on:
         default: "300"
 jobs:
   cpu-smoke:
-    runs-on: husk-libvirt-cpu          # the distinct label → routes to this pool
+    runs-on: husk-pool-libvirt-ubuntu-test          # the distinct label → routes to this pool
     steps:
       - run: uname -a
       - run: cat /etc/os-release
@@ -17,7 +17,7 @@ jobs:
       - run: sleep ${{ inputs.sleep_seconds }}
 
   libvirt-container:
-    runs-on: husk-libvirt-cpu          # the distinct label → routes to this pool
+    runs-on: husk-pool-libvirt-ubuntu-test          # the distinct label → routes to this pool
     container: alpine
     steps:
       - name: Identity
