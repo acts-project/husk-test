@@ -15,7 +15,7 @@ on:
 
 jobs:
   gpu-smoke:
-    runs-on: [self-hosted, linux, x64, husk-libvirt-gpu]
+    runs-on: [self-hosted, linux, x64, cuda]
     # Belt-and-suspenders: husk's own wall-clock cap powers the slot off, but a
     # job timeout keeps a wedged driver install from hanging the runner.
     timeout-minutes: 20
